@@ -35,6 +35,11 @@ public class ProductController {
         return productService.findById(id);
     }
 
+    @GetMapping("/test")
+    public String testEndpoint() {
+        return "API is working!";
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteById(@PathVariable Long id) {
