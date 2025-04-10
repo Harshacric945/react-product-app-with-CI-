@@ -1,0 +1,120 @@
+pipeline{
+    agent any
+   
+    environment {
+		IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
+    stages {
+        stage('Checkout from Git'){
+            steps{
+                git branch: 'main', url: 'https://github.com/Harshacric945/react-product-app-with-CI-.git'
+            }
+        }
+		stage('TRIVY FS SCAN '){
+            steps{
+                sh "trivy fs --format table -o fs-report.html ."
+            }
+        }
+        stage("Docker Build & Tag Images"){
+            steps{
+                script{
+                   withDockerRegistry(credentialsId: 'docker-cred',){
+                       sh "docker build -t harshakoppu945/fsbackend:${IMAGE_TAG} -f backend/Dockerfile backend/"
+                       sh "docker build -t harshakoppu945/fsfrontend:${IMAGE_TAG} -f frontend/Dockerfile frontend/"
+                  
+                    }
+                }
+            }
+        }
+        stage("Docker Images Scan with Trivy"){
+            steps{
+                 sh "trivy image --format table -o fsbackend-image-report.html  harshakoppu945/fsbackend:${IMAGE_TAG}"
+				 sh "trivy image --format table -o fsfrontend-image-report.html  harshakoppu945/fsfrontend:${IMAGE_TAG}"
+				 
+            }
+        }
+        stage("Docker Image Push to Docker Hub"){
+            steps{
+                script{
+                   withDockerRegistry(credentialsId: 'docker-cred',){
+				       sh "docker push harshakoppu945/fsbackend:${IMAGE_TAG}"
+					   sh "docker push harshakoppu945/fsfrontend:${IMAGE_TAG}"
+				    }
+                }				   
+            }
+        }
+		stage("Update CD Repo with Image Tag"){
+            steps{
+                script{
+				    // Archive reports before cleaning workspace
+                     archiveArtifacts artifacts: '*.html', allowEmptyArchive: true
+					 
+                     cleanWs()
+                     withCredentials([string(credentialsId: 'github-pat', variable: 'GITHUB_PAT')]){
+                        sh '''
+                             if [ -z "$IMAGE_TAG" ]; then
+                              echo "IMAGE_TAG is not set"
+                                 exit 1
+                                   fi
+
+                             # Clone CD repo using GitHub PAT
+                             git clone https://git:$GITHUB_PAT@github.com/Harshacric945/Full-Stack-app-CD-.git
+                             cd Full-Stack-app-CD-/Manifestsforargocddeployments
+
+                             # Update backend and frontend image tags
+                             sed -i "s|harshakoppu945/fsbackend:.*|harshakoppu945/fsbackend:${IMAGE_TAG}|" backenddeployments/backenddeployment.yml
+                             sed -i "s|harshakoppu945/fsfrontend:.*|harshakoppu945/fsfrontend:${IMAGE_TAG}|" frontenddeployments/frontenddeployment.yml
+
+                             # Git config + commit + push
+                             git config --global user.email "harshakoppu945@gmail.com"
+                             git config --global user.name "Harshalocalgit"
+
+                             git add backenddeployments/backenddeployment.yml
+                             git add frontenddeployments/frontenddeployment.yml
+                             git commit -m "Updated image versions to ${IMAGE_TAG}" || echo "No changes to commit"
+                             git push origin main
+                           '''
+                     }
+                }
+            }
+        }
+    }
+    post {
+     always {
+	     script{
+		      def jobName = env.JOB_NAME
+              def buildNumber = env.BUILD_NUMBER
+              def pipelineStatus = currentBuild.currentResult ?: 'SUCCESS'
+              def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS'
+			  ? 'green' : 'red'
+			  
+			 def body = """
+              <html>
+              <body>
+              <div style="border: 4px solid ${bannerColor}; padding: 
+              10px;">
+              <h2>${jobName} - Build ${buildNumber}</h2>
+              <div style="background-color: ${bannerColor}; padding: 
+              10px;">
+              <h3 style="color: white;">Pipeline Status:
+               ${pipelineStatus.toUpperCase()}</h3>
+              </div>
+              <p>Check the <a href="${BUILD_URL}">console 
+              output</a>.</p>
+              </div>
+              </body>
+              </html>
+            """
+                emailext (
+                    subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
+                    body: body,
+                    to: 'sriharshakoppu945@gmail.com',
+                    from: 'jenkins@example.com',
+                    replyTo: 'jenkins@example.com',
+                    mimeType: 'text/html',
+                    attachmentsPattern: '*.html'
+				)
+			}	
+        }
+    }
+}
