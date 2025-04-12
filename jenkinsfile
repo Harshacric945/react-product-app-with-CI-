@@ -58,8 +58,8 @@ pipeline{
                                    fi
 
                              # Clone CD repo using GitHub PAT
-                             git clone https://git:$GITHUB_PAT@github.com/Harshacric945/Full-Stack-app-CD-.git
-                             cd Full-Stack-app-CD-/Manifestsforargocddeployments
+                             git clone https://git:$GITHUB_PAT@github.com/Harshacric945/Full-Stack-app-CD.git
+                             cd Full-Stack-app-CD/Manifestsforargocddeployments
 
                              # Update backend and frontend image tags
                              sed -i "s|harshakoppu945/fsbackend:.*|harshakoppu945/fsbackend:${IMAGE_TAG}|" backenddeployments/backenddeployment.yml
