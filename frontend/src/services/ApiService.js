@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const apiUrl = `/api/products`;
+const baseURL = window.REACT_APP_API_BASE_URL || '';
+const apiUrl = `${baseURL}/api/products`;
+
 
 export const getProducts = async () => {
   try {
