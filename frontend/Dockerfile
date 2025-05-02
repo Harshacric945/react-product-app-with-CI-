@@ -3,29 +3,25 @@ FROM node:18 AS build
 
 WORKDIR /app
 
-# Copy package.json and package-lock.json to the container
+# Install dependencies first for caching
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy the rest of the application code
+# Copy the rest of the app and build
 COPY . .
-
-# Build the React app
 RUN npm run build
 
 # Serve stage
 FROM nginx:1.25.1
 
-# Copy the custom nginx.conf file to the container
+# Copy custom nginx config
 COPY .docker/nginx.conf /etc/nginx/nginx.conf
 
-# Copy the built React app from the build stage to the nginx container
+# Copy the built React app
 COPY --from=build /app/build /usr/share/nginx/html
 
-# Expose port 80
-EXPOSE 80
+# Include env.js at runtime
+COPY env.js /usr/share/nginx/html/env.js
 
-# Start Nginx
+EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
